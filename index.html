@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>每日打卡</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f4f6fb;color:#222}
+.wrap{max-width:480px;margin:0 auto;padding:24px 16px}
+h1{font-size:24px;margin:0 0 4px}
+.date{color:#888;margin-bottom:16px}
+.card{background:#fff;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);margin-bottom:14px}
+.add{display:flex;gap:8px}
+.add input{flex:1;padding:10px;border:1px solid #ddd;border-radius:10px;font-size:16px}
+button{border:0;border-radius:10px;padding:10px 14px;font-size:15px;cursor:pointer}
+.primary{background:#4f7cff;color:#fff}
+.item{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f0f0f0}
+.item:last-child{border-bottom:0}
+.item label{display:flex;align-items:center;gap:10px;font-size:16px;flex:1}
+.item input{width:22px;height:22px}
+.done span{color:#aaa;text-decoration:line-through}
+.streak{color:#ff8a00;font-size:13px;margin-left:6px}
+.del{background:none;color:#ccc;font-size:18px;padding:4px 8px}
+.progress{height:10px;background:#eee;border-radius:5px;overflow:hidden;margin-top:8px}
+.bar{height:100%;background:#4f7cff;width:0;transition:width .3s}
+.hist{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px}
+.day{aspect-ratio:1;border-radius:6px;background:#eee;font-size:11px;display:flex;align-items:center;justify-content:center;color:#666}
+.empty{color:#aaa;text-align:center;padding:12px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>每日打卡</h1>
+  <div class="date" id="today"></div>
+  <div class="card">
+    <div class="add"><input id="newHabit" placeholder="添加一个习惯，比如：运动30分钟"><button class="primary" id="addBtn">添加</button></div>
+  </div>
+  <div class="card">
+    <div id="list"></div>
+    <div id="summary" style="margin-top:10px;color:#666;font-size:14px"></div>
+    <div class="progress"><div class="bar" id="bar"></div></div>
+  </div>
+  <div class="card">
+    <div style="font-weight:600">最近 28 天完成情况</div>
+    <div class="hist" id="hist"></div>
+  </div>
+  <div style="text-align:center;color:#aaa;font-size:12px">数据只保存在你这台设备的浏览器里</div>
+</div>
+<script>
+const KEY='meiri-daka';
+const load=()=>{try{return JSON.parse(localStorage.getItem(KEY))||{habits:[],log:{}}}catch(e){return{habits:[],log:{}}}};
+let data=load();
+const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
+const ds=d=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
+const today=ds(new Date());
+document.getElementById('today').textContent=new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+function streak(id){let n=0,d=new Date();while((data.log[ds(d)]||[]).includes(id)){n++;d.setDate(d.getDate()-1)}return n}
+function render(){
+  const list=document.getElementById('list');list.innerHTML='';
+  const done=data.log[today]||[];
+  if(!data.habits.length)list.innerHTML='<div class="empty">还没有习惯，先在上面添加一个吧</div>';
+  data.habits.forEach(h=>{
+    const ok=done.includes(h.id);const s=streak(h.id);
+    const row=document.createElement('div');row.className='item'+(ok?' done':'');
+    row.innerHTML=`<label><input type="checkbox" ${ok?'checked':''}><span></span>${s?`<em class="streak">连续 ${s} 天</em>`:''}</label><button class="del" title="删除">×</button>`;
+    row.querySelector('span').textContent=h.name;
+    row.querySelector('input').onchange=e=>{let a=data.log[today]||[];a=e.target.checked?[...a,h.id]:a.filter(x=>x!==h.id);data.log[today]=a;save();render()};
+    row.querySelector('.del').onclick=()=>{if(confirm('删除「'+h.name+'」？')){data.habits=data.habits.filter(x=>x.id!==h.id);save();render()}};
+    list.appendChild(row);
+  });
+  const total=data.habits.length,cnt=data.habits.filter(h=>done.includes(h.id)).length;
+  document.getElementById('summary').textContent=total?`今天完成 ${cnt}/${total}`:'';
+  document.getElementById('bar').style.width=total?(cnt/total*100)+'%':'0';
+  const hist=document.getElementById('hist');hist.innerHTML='';
+  for(let i=27;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=ds(d);
+    const c=(data.log[k]||[]).filter(id=>data.habits.some(h=>h.id===id)).length;const r=total?c/total:0;
+    const el=document.createElement('div');el.className='day';el.textContent=d.getDate();
+    if(r>0){el.style.background=`rgba(79,124,255,${0.25+0.75*r})`;el.style.color=r>0.5?'#fff':'#333'}
+    el.title=`${k}：${c}/${total}`;hist.appendChild(el)}
+}
+function add(){const i=document.getElementById('newHabit');const v=i.value.trim();if(!v)return;data.habits.push({id:Date.now().toString(36),name:v});i.value='';save();render()}
+document.getElementById('addBtn').onclick=add;
+document.getElementById('newHabit').onkeydown=e=>{if(e.key==='Enter')add()};
+render();
+</script>
+</body>
+</html>
